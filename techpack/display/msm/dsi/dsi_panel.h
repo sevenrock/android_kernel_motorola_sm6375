@@ -172,6 +172,7 @@ struct dsi_backlight_config {
 	bool bl_inverted_dbv;
 	bool bl_demura_cmd;
 	u32 demura_type;
+	u32 real_bl_level;
 
 	int en_gpio;
 	/* PWM params */
