@@ -540,7 +540,7 @@ void aw_monitor_start(struct aw_monitor_desc *monitor_desc)
 
 int aw_monitor_stop(struct aw_monitor_desc *monitor_desc)
 {
-	struct aw_device *aw_dev = container_of(monitor_desc,
+	struct aw_device __maybe_unused *aw_dev = container_of(monitor_desc,
 			struct aw_device, monitor_desc);
 
 	aw_dev_info(aw_dev->dev, "enter");
