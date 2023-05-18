@@ -465,7 +465,7 @@ static void aw_dev_parse_skt_type(struct aw_device *aw_dev,
 		struct aw_cfg_hdr *prof_hdr, struct aw_all_prof_info *all_prof_info)
 {
 	int i = 0;
-	int sec_num = 0;
+	int sec_num __maybe_unused = 0;
 	struct aw_cfg_dde *cfg_dde =
 		(struct aw_cfg_dde *)((char *)prof_hdr + prof_hdr->a_hdr_offset);
 
