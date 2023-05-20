@@ -35,7 +35,7 @@
 
 #define AWINIC_CODE_VERSION "V0.0.7-V1.0.4"	/* "code version"-"excel version" */
 
-#define DEBUG_LOG_LEVEL
+/*#define DEBUG_LOG_LEVEL */
 #ifdef DEBUG_LOG_LEVEL
 #define DBG(fmt, arg...)   do {\
 printk("AWINIC_BIN %s,line= %d,"fmt, __func__, __LINE__, ##arg);\
@@ -44,8 +44,8 @@ printk("AWINIC_BIN %s,line= %d,"fmt, __func__, __LINE__, ##arg);\
 printk("AWINIC_BIN_ERR %s,line= %d,"fmt, __func__, __LINE__, ##arg);\
 } while (0)
 #else
-#define DBG(fmt, arg...) do {} while (0)
-#define DBG_ERR(fmt, arg...) do {} while (0)
+#define DBG(fmt, arg...)	((void)0)
+#define DBG_ERR(fmt, arg...)	((void)0)
 #endif
 
 #define printing_data_code
