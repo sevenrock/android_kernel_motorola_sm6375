@@ -538,6 +538,7 @@ static int q6lsm_apr_send_pkt(struct lsm_client *client, void *handle,
 	if (wait)
 		mutex_unlock(&lsm_common.apr_lock);
 
+	mmap_handle_p = NULL;
 	if (mmap_p && *mmap_p == 0)
 		ret = -ENOMEM;
 	mmap_handle_p = NULL;
