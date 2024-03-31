@@ -3341,7 +3341,7 @@
 #include "holi-coresight.dtsi"
 #include "holi-pm.dtsi"
 #include "holi-vidc.dtsi"
-#include "camera/blair-camera.dtsi"
+#include "camera-legacy/rhodep/blair-camera.dtsi"
 #include "holi-thermal.dtsi"
 #include "holi-qupv3.dtsi"
 #include "display/blair-sde.dtsi"
