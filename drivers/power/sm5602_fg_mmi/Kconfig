@@ -1,0 +1,3 @@
+config MMI_SM5602_FG
+        tristate "sm5602_fg_mmi"
+        default n
