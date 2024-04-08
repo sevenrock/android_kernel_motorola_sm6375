@@ -1232,5 +1232,9 @@ config VIRTIO_REGULATOR
 
 source "drivers/regulator/wl2864c/Kconfig"
 
+source "drivers/regulator/wl2866d/Kconfig"
+
+source "drivers/regulator/wl2868c/Kconfig"
+
 endif
 
