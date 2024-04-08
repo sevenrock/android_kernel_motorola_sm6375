@@ -1,4 +1,4 @@
-ifneq ($(filter m y,$(CONFIG_USE_MMI_CHARGER)),)
+ifneq ($(filter m y,$(CONFIG_MMI_CHARGER)),)
 	EXTRA_CFLAGS += -DUSE_MMI_CHARGER
 	EXTRA_CFLAGS += -I$(srctree)/$(src)/../mmi_charger
 endif

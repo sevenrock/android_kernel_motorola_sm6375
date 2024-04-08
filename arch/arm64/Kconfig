@@ -1926,3 +1926,9 @@ config CAMERA_CCI_ADDR_SWITCH
 	default n
 	help
 	Enable it to switch i2c address.
+
+config MMI_QC3P_TURBO_CHARGER
+        bool "QC3P turbo charging"
+        default n
+        help
+        Enable it only for products that support QC3P charging.
