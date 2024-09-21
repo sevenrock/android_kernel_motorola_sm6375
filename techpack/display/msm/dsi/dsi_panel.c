@@ -1344,6 +1344,81 @@ static int dsi_panel_set_hbm(struct dsi_panel *panel,
 	return rc;
 };
 
+static ssize_t sysfs_fod_hbm_read(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_panel *panel = display->panel;
+	bool status;
+
+	mutex_lock(&panel->panel_lock);
+	status = panel->fod_hbm_enabled;
+	mutex_unlock(&panel->panel_lock);
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", status);
+}
+
+static ssize_t sysfs_fod_hbm_write(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_panel *panel = display->panel;
+	struct msm_param_info param_info;
+	bool status;
+	int rc;
+
+	if (!panel->lhbm_config.enable)
+		return -EOPNOTSUPP;
+
+	rc = kstrtobool(buf, &status);
+	if (rc)
+		return rc;
+
+	if (panel->fod_hbm_enabled == status)
+		goto exit;
+
+	param_info.param_idx = PARAM_HBM_ID;
+	param_info.value = status ? HBM_FOD_ON_STATE : HBM_OFF_STATE;
+	rc = dsi_panel_set_hbm(panel, &param_info);
+	if (rc)
+		goto exit;
+
+	panel->fod_hbm_enabled = status;
+
+exit:
+
+	return rc ?: count;
+}
+
+static DEVICE_ATTR(fod_hbm, 0644, sysfs_fod_hbm_read, sysfs_fod_hbm_write);
+
+static struct attribute *panel_attrs[] = {
+	&dev_attr_fod_hbm.attr,
+	NULL,
+};
+
+static struct attribute_group panel_attrs_group = {
+	.attrs = panel_attrs,
+};
+
+static int dsi_panel_sysfs_init(struct dsi_panel *panel)
+{
+	int rc;
+
+	rc = sysfs_create_group(&panel->parent->kobj, &panel_attrs_group);
+	if (rc)
+		DSI_ERR("failed to create panel sysfs attributes\n");
+
+	return rc;
+}
+
+static void dsi_panel_sysfs_deinit(struct dsi_panel *panel)
+{
+	sysfs_remove_group(&panel->parent->kobj, &panel_attrs_group);
+}
+
 static int dsi_panel_set_acl(struct dsi_panel *panel,
                         struct msm_param_info *param_info)
 {
@@ -4888,6 +4963,10 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 
 	mutex_init(&panel->panel_lock);
 
+	rc = dsi_panel_sysfs_init(panel);
+	if (rc)
+		goto error;
+
 	return panel;
 error_vreg_put:
 	(void)dsi_panel_vreg_put(panel);
@@ -4898,6 +4977,8 @@ error:
 
 void dsi_panel_put(struct dsi_panel *panel)
 {
+	dsi_panel_sysfs_deinit(panel);
+
 	drm_panel_remove(&panel->drm_panel);
 
 	/* free resources allocated for ESD check */
