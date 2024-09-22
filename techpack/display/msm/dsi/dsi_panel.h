@@ -247,7 +247,7 @@ struct dsi_panel_lhbm_config {
 	u32 lhbm_wait_for_fps_count;
 	u32 lhbm_wait_for_fps_interval;
 	u32 *lhbm_not_allowed_fps_list;
-	u32 lhbm_not_allowed_fps_list_len;
+	int lhbm_not_allowed_fps_list_len;
 };
 
 enum panel_idx {
