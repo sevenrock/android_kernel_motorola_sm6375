@@ -1538,7 +1538,11 @@ static const struct msm_pingroup holi_groups[] = {
 };
 
 static const int holi_reserved_gpios[] = {
+#if defined(CONFIG_RHODEC_DTB)||defined(CONFIG_PNANGN_DTB)
+	13, 14, 15, 16, -1
+#else
 	13, 14, 15, 16, 45, 46, 56, 57, -1
+#endif
 };
 
 static const struct msm_gpio_wakeirq_map holi_mpm_map[] = {

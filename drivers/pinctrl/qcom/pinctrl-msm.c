@@ -594,6 +594,11 @@ static void msm_gpio_dbg_show_one(struct seq_file *s,
 	if (!gpiochip_line_is_valid(chip, offset))
 		return;
 
+	if (!gpiochip_is_requested(chip, offset)) {
+		seq_printf(s, " gpio%d: is not allocated in gpiolib\n", offset);
+		return;
+	}
+
 	g = &pctrl->soc->groups[offset];
 	ctl_reg = msm_readl_ctl(pctrl, g);
 	io_reg = msm_readl_io(pctrl, g);
@@ -1324,6 +1329,11 @@ static int msm_gpio_init(struct msm_pinctrl *pctrl)
 
 	chip = &pctrl->chip;
 	chip->base = -1;
+	if (!of_property_read_u32(pctrl->dev->of_node, "qcom,base-value", &ret)) {
+		chip->base = ret;
+		dev_info(pctrl->dev, "set base value as %d\n", chip->base);
+	}
+
 	chip->ngpio = ngpio;
 	chip->label = dev_name(pctrl->dev);
 	chip->parent = pctrl->dev;

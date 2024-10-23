@@ -229,7 +229,7 @@ struct smb5 {
 	struct iio_chan_spec	*iio_chan_ids;
 };
 
-static int __debug_mask;
+static int __debug_mask = PR_MISC | PR_INTERRUPT;
 
 static ssize_t pd_disabled_show(struct device *dev, struct device_attribute
 				*attr, char *buf)
@@ -281,9 +281,38 @@ static ssize_t weak_chg_icl_ua_store(struct device *dev, struct device_attribute
 }
 static DEVICE_ATTR_RW(weak_chg_icl_ua);
 
+static ssize_t usb_dcp_icl_ua_show(struct device *dev, struct device_attribute
+				    *attr, char *buf)
+{
+	struct smb5 *chip = dev_get_drvdata(dev);
+	struct smb_charger *chg = &chip->chg;
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", chg->usb_dcp_curr_max);
+}
+
+static ssize_t usb_dcp_icl_ua_store(struct device *dev, struct device_attribute
+				 *attr, const char *buf, size_t count)
+{
+	int val;
+	struct smb5 *chip = dev_get_drvdata(dev);
+	struct smb_charger *chg = &chip->chg;
+
+	if (kstrtos32(buf, 0, &val))
+		return -EINVAL;
+
+	chg->usb_dcp_curr_max = val;
+	pr_info("USB dcp icl was rewritten as %dua\n", chg->usb_dcp_curr_max);
+	if (chg->real_charger_type == POWER_SUPPLY_TYPE_USB_DCP)
+		smblib_rerun_apsd_if_required(chg);
+
+	return count;
+}
+static DEVICE_ATTR_RW(usb_dcp_icl_ua);
+
 static struct attribute *smb5_attrs[] = {
 	&dev_attr_pd_disabled.attr,
 	&dev_attr_weak_chg_icl_ua.attr,
+	&dev_attr_usb_dcp_icl_ua.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(smb5);
@@ -597,6 +626,8 @@ static int smb5_parse_dt_misc(struct smb5 *chip, struct device_node *node)
 					&chg->chg_param.qc4_max_icl_ua);
 	if (chg->chg_param.qc4_max_icl_ua <= 0)
 		chg->chg_param.qc4_max_icl_ua = MICRO_4PA;
+	chg->mmi_qc3p_support = of_property_read_bool(node,
+				"mmi,qc3p-support");
 
 	return 0;
 }
@@ -763,6 +794,47 @@ static int smb5_parse_sdam(struct smb5 *chip, struct device_node *node)
 	return 0;
 }
 
+static int smb5_parse_dt_mmi(struct smb5 *chip, struct device_node *node)
+{
+	struct smb_charger *chg = &chip->chg;
+	struct device_node *npoint = chg->dev->of_node;
+	struct device_node *np;
+	const char *dcp_curr = NULL;
+	int retval;
+
+	chg->usb_dcp_curr_max = 0;
+	np = of_find_node_by_path("/chosen");
+
+	retval = of_property_read_u32(npoint, "qcom,dcp-curr-max",
+				  &chg->usb_dcp_curr_max);
+	if (retval) {
+		chg->usb_dcp_curr_max = 1500000;
+		goto out;
+	}
+
+	if (!np)
+		goto out;
+
+	retval = of_property_read_string(np, "mmi,usb_dcp",
+						 &dcp_curr);
+
+	if ((retval == -EINVAL) || !dcp_curr) {
+		pr_info("mmi,usb_dcp unused\n");
+		goto out;
+	} else
+		pr_info("usb_dcp = %s\n", dcp_curr);
+
+	if (strstr(dcp_curr, "1.5A"))
+		chg->usb_dcp_curr_max = 1500000;
+	else if (strstr(dcp_curr, "2A"))
+		chg->usb_dcp_curr_max = 2000000;
+
+out:
+	if (np)
+		of_node_put(np);
+	return 0;
+}
+
 static int smb5_parse_dt(struct smb5 *chip)
 {
 	struct smb_charger *chg = &chip->chg;
@@ -791,6 +863,10 @@ static int smb5_parse_dt(struct smb5 *chip)
 		return rc;
 
 	rc = smb5_parse_sdam(chip, node);
+	if (rc < 0)
+		return rc;
+
+	rc = smb5_parse_dt_mmi(chip, node);
 	if (rc < 0)
 		return rc;
 
@@ -871,7 +947,7 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 		rc = smblib_get_prop_usb_current_now(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
-		rc = smblib_get_prop_input_current_max(chg, val);
+		val->intval = get_effective_result(chg->usb_icl_votable);
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 		val->intval = POWER_SUPPLY_TYPE_USB_PD;
@@ -1366,8 +1442,8 @@ static int smb5_batt_prop_is_writeable(struct power_supply *psy,
 }
 
 static const struct power_supply_desc batt_psy_desc = {
-	.name = "battery",
-	.type = POWER_SUPPLY_TYPE_BATTERY,
+	.name = "qcom_battery",
+	.type = POWER_SUPPLY_TYPE_MAINS,
 	.properties = smb5_batt_props,
 	.num_properties = ARRAY_SIZE(smb5_batt_props),
 	.get_property = smb5_batt_get_prop,
@@ -1468,6 +1544,9 @@ static int smb5_init_vconn_regulator(struct smb5 *chip)
 	chg->vconn_vreg->rdesc.ops = &smb5_vconn_reg_ops;
 	chg->vconn_vreg->rdesc.of_match = "qcom,smb5-vconn";
 	chg->vconn_vreg->rdesc.name = "qcom,smb5-vconn";
+
+	if (of_get_property(chg->dev->of_node, "vconn-parent-supply", NULL))
+		chg->vconn_vreg->rdesc.supply_name = "vconn-parent";
 
 	chg->vconn_vreg->rdev = devm_regulator_register(chg->dev,
 						&chg->vconn_vreg->rdesc, &cfg);
@@ -1581,6 +1660,19 @@ static int smb5_configure_typec(struct smb_charger *chg)
 				rc);
 			return rc;
 		}
+	}
+
+	/*
+	 * Config SCHG_P_TYPEC_TYPE_C_CCOUT_CONTROL to 0x03
+	 * Enable detection of debug accessory in sink mode
+	 */
+	rc = smblib_masked_write(chg, TYPE_C_DEBUG_ACCESS_SINK_REG,
+				      TYPEC_DEBUG_ACCESS_SINK_MASK, 0x03);
+	if (rc < 0) {
+		dev_err(chg->dev,
+			"Couldn't configure TYPE_C_DEBUG_ACCESS_SINK_REG rc=%d\n",
+				rc);
+		return rc;
 	}
 
 	if (chg->chg_param.smb_version != PMI632) {

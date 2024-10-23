@@ -145,7 +145,7 @@ int btfm_slim_enable_ch(struct btfmslim *btfmslim, struct btfmslim_ch *ch,
 	if (!btfmslim || !ch)
 		return -EINVAL;
 
-	BTFMSLIM_DBG("port: %d ch: %d", ch->port, ch->ch);
+	BTFMSLIM_INFO("port: %d ch: %d", ch->port, ch->ch);
 
 	/* Define the channel with below parameters */
 	prop.prot =  ((rates == 44100) || (rates == 88200)) ?
