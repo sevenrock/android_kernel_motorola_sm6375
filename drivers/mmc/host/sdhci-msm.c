@@ -474,6 +474,7 @@ struct sdhci_msm_host {
 	int sdiowakeup_irq;
 	bool is_sdiowakeup_enabled;
 	bool sdio_pending_processing;
+	bool first_power_on;
 };
 
 static struct sdhci_msm_host *sdhci_slot[2];
@@ -1717,11 +1718,11 @@ static void sdhci_msm_set_uhs_signaling(struct sdhci_host *host,
 /*
  * Ensure larger discard size by always setting max_busy_timeout to zero.
  * This will always return max_busy_timeout as zero to the sdhci layer.
- */
+*/
 
-static unsigned int sdhci_msm_get_max_timeout_count(struct sdhci_host *host)
-{
-	return 0;
+static unsigned int sdhci_msm_get_max_timeout_count(struct sdhci_host
+*host) {
+ return 0;
 }
 
 #define MAX_PROP_SIZE 32
@@ -2264,14 +2265,23 @@ static int sdhci_msm_setup_vreg(struct sdhci_msm_host *msm_host,
 
 	for (i = 0; i < ARRAY_SIZE(vreg_table); i++) {
 		if (vreg_table[i]) {
-			if (enable)
+			if (enable) {
 				ret = sdhci_msm_vreg_enable(vreg_table[i]);
+				if (msm_host->first_power_on && !(mmc->caps & MMC_CAP_NONREMOVABLE)) {
+					ret = sdhci_msm_vreg_disable(vreg_table[i]);
+					msleep(1);
+					ret = sdhci_msm_vreg_enable(vreg_table[i]);
+				}
+			}
 			else
 				ret = sdhci_msm_vreg_disable(vreg_table[i]);
 			if (ret)
 				goto out;
 		}
 	}
+
+	if (enable && !(mmc->caps & MMC_CAP_NONREMOVABLE))
+		msm_host->first_power_on = false;
 
 	if (enable && !(mmc->caps & MMC_CAP_NONREMOVABLE)) {
 
@@ -3564,6 +3574,7 @@ static const struct sdhci_ops sdhci_msm_ops = {
 	.set_bus_width = sdhci_set_bus_width,
 	.set_uhs_signaling = sdhci_msm_set_uhs_signaling,
 	.get_max_timeout_count = sdhci_msm_get_max_timeout_count,
+
 #if defined(CONFIG_SDC_QTI)
 	.dump_vendor_regs = sdhci_msm_dump_vendor_regs,
 #endif
@@ -4296,6 +4307,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	msm_host = sdhci_pltfm_priv(pltfm_host);
 	msm_host->mmc = host->mmc;
 	msm_host->pdev = pdev;
+	msm_host->first_power_on = true;
 
 	ret = mmc_of_parse(host->mmc);
 	if (ret)
@@ -4548,6 +4560,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	host->timeout_clk_div = 4;
 	msm_host->mmc->caps2 |= MMC_CAP2_CLK_SCALE;
 #endif
+	msm_host->mmc->caps2 |= MMC_CAP2_MAX_DISCARD_SIZE;
 	sdhci_msm_setup_pm(pdev, msm_host);
 
 	host->mmc_host_ops.execute_tuning = sdhci_msm_execute_tuning;

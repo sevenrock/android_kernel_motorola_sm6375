@@ -267,6 +267,12 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 	case PSY_IIO_TYPEC_ACCESSORY_MODE:
 		rc = smblib_get_usb_prop_typec_accessory_mode(chg, val);
 		break;
+	case PSY_IIO_CHARGING_ENABLED:
+		*val = !get_effective_result(chg->chg_disable_votable);
+		break;
+	case PSY_IIO_MMI_QC3P_POWER:
+		*val = chg->mmi_qc3p_power;
+		break;
 	default:
 		pr_err("get prop %d is not supported\n", channel);
 		rc = -EINVAL;
@@ -315,10 +321,14 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 		rc = smblib_set_prop_pr_swap_in_progress(chg, val);
 		break;
 	case PSY_IIO_PD_VOLTAGE_MAX:
+#ifdef QCOM_BASE
 		rc = smblib_set_prop_pd_voltage_max(chg, val);
+#endif
 		break;
 	case PSY_IIO_PD_VOLTAGE_MIN:
+#ifdef QCOM_BASE
 		rc = smblib_set_prop_pd_voltage_min(chg, val);
+#endif
 		break;
 	case PSY_IIO_CONNECTOR_HEALTH:
 		chg->connector_health = val;
@@ -465,7 +475,12 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 		rc = smblib_run_aicl(chg, RERUN_AICL);
 		break;
 	case PSY_IIO_DP_DM:
-		if (!chg->flash_active)
+		if (chg->mmi_qc3p_support) {
+			if ((chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3P5)
+				||(!chg->flash_active && !chg->mmi_is_qc3p_authen
+					&& chg->real_charger_type == QTI_POWER_SUPPLY_TYPE_USB_HVDCP_3))
+				rc = smblib_dp_dm(chg, val);
+		} else if (!chg->flash_active)
 			rc = smblib_dp_dm(chg, val);
 		break;
 	case PSY_IIO_INPUT_CURRENT_LIMITED:
@@ -487,9 +502,13 @@ int smb5_iio_set_prop(struct smb_charger *chg, int channel, int val)
 		msleep(50);
 		vote(chg->chg_disable_votable, FORCE_RECHARGE_VOTER,
 				false, 0);
+		chg->chg_done = 0;
 		break;
 	case PSY_IIO_FCC_STEPPER_ENABLE:
 		chg->fcc_stepper_enable = val;
+		break;
+	case PSY_IIO_CHARGING_ENABLED:
+		vote(chg->chg_disable_votable, USER_VOTER, !!!val, 0);
 		break;
 	default:
 		pr_err("get prop %d is not supported\n", channel);

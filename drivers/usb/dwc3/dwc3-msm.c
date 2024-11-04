@@ -65,6 +65,11 @@
 /* AHB2PHY read/write waite value */
 #define ONE_READ_WRITE_WAIT 0x11
 
+#undef dev_dbg
+#undef pr_debug
+#define dev_dbg dev_err
+#define pr_debug pr_err
+
 /* XHCI registers */
 #define USB3_HCSPARAMS1		(0x4)
 #define USB3_PORTSC		(0x420)
@@ -5137,6 +5142,12 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	device_create_file(&pdev->dev, &dev_attr_speed);
 	device_create_file(&pdev->dev, &dev_attr_bus_vote);
 	device_create_file(&pdev->dev, &dev_attr_usb_data_enabled);
+
+	if (of_property_read_bool(mdwc->dev->of_node,
+					"qcom,force-adb-enable")) {
+		dev_err(mdwc->dev, "%s: force usb start device mode\n", __func__);
+		dwc3_start_stop_device(mdwc, true);
+	}
 
 	return 0;
 

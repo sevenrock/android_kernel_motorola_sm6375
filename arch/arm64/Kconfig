@@ -1914,3 +1914,57 @@ source "arch/arm64/kvm/Kconfig"
 if CRYPTO
 source "arch/arm64/crypto/Kconfig"
 endif
+
+config AF_NOISE_ELIMINATION
+	bool "For elimnating AF resonance noise"
+	default n
+	help
+	Enable it only for produts that suffering AF resonance noise.
+
+config AW882XX_PARAMS_FROM_BIN
+        bool "params is stored in bin file"
+        default n
+        help
+        Enable it only for params of smartPA is stored in bin file.
+
+config AW882XX_STEREO_SMARTPA
+        bool "aw dual smart pa"
+        default n
+        help
+        Enable it only for dual smart pa.
+
+config AW882XX_MAPSIZE_16K
+        bool "aw afe mapsize 16k"
+        default n
+        help
+        Enable it only for use 16k mapsize.
+
+config SND_SOC_AW87XXX
+        tristate "SoC Audio for awinic AW87XXX Smart K PA"
+        depends on I2C
+        help
+          This option enables support for AW87XXX Smart K PA.
+
+config CAMERA_FLASH_PWM
+        bool "control flash"
+        default n
+        help
+        Enable it only for produts that control flash.
+
+config CAMERA_DISABLE_VSYNC_IRQ
+	bool "For cam disable vsync irq"
+	default n
+	help
+	Enable it to disable cam vsync irq.
+
+config CAM_SENSOR_PROBE_RETRY
+        bool "For sensor probe fail"
+        default n
+        help
+        Add retries for sensor id matching
+
+config CAMERA_CCI_ADDR_SWITCH
+	bool "For cam switch i2c address"
+	default n
+	help
+	Enable it to switch i2c address.

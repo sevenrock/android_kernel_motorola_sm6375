@@ -21,6 +21,7 @@ struct qg_batt_props {
 	int			vbatt_full_mv;
 	int			fastchg_curr_ma;
 	int			qg_profile_version;
+	u32			sdam_magic_number;
 };
 
 struct qg_irq_info {
@@ -80,6 +81,7 @@ struct qg_dt {
 	bool			multi_profile_load;
 	bool			tcss_enable;
 	bool			bass_enable;
+	bool			cp_use_internal_qg;
 };
 
 struct qg_esr_data {

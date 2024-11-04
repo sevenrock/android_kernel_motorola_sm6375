@@ -1103,6 +1103,15 @@ static int qg_esr_estimate(struct qpnp_qg *chip)
 		goto done;
 	}
 
+	if (chip->dt.cp_use_internal_qg) {
+		rc = qg_write_iio_chan(chip, CP_CHARGING_ENABLED, 0);
+		if (rc < 0)
+			pr_err("Failed to force disable cp rc=%d\n", rc);
+		else
+			qg_dbg(chip, QG_DEBUG_STATUS, "disable cp\n");
+		msleep(1000);
+	}
+
 	for (i = 0; i < qg_esr_count; i++) {
 		/* Fire ESR measurement */
 		rc = qg_masked_write(chip,
@@ -1189,6 +1198,14 @@ static int qg_esr_estimate(struct qpnp_qg *chip)
 		}
 		/* delay before the next ESR measurement */
 		msleep(200);
+	}
+
+	if (chip->dt.cp_use_internal_qg) {
+		rc = qg_write_iio_chan(chip, CP_CHARGING_ENABLED, 1);
+		if (rc < 0)
+			pr_err("Failed to force enable cp rc=%d\n", rc);
+		else
+			qg_dbg(chip, QG_DEBUG_STATUS, "enable cp\n");
 	}
 
 	rc = qg_process_esr_data(chip);
@@ -2150,6 +2167,10 @@ static int qg_iio_write_raw(struct iio_dev *indio_dev,
 	case PSY_IIO_BATT_AGE_LEVEL:
 		rc = qg_setprop_batt_age_level(chip, val1);
 		break;
+	case PSY_IIO_BATT_FULL_CURRENT:
+               chip->dt.iterm_ma = val1;
+               qg_dbg(chip, QG_DEBUG_STATUS, "set bat full current = %d\n", chip->dt.iterm_ma);
+               break;
 	default:
 		pr_debug("Unsupported QG IIO chan %d\n", chan->channel);
 		rc = -EINVAL;
@@ -2717,14 +2738,23 @@ static int qg_psy_get_property(struct power_supply *psy,
 			       enum power_supply_property psp,
 			       union power_supply_propval *pval)
 {
+	struct qpnp_qg *chip = power_supply_get_drvdata(psy);
+	int rc = 0;
+
 	if (psp == POWER_SUPPLY_PROP_TYPE)
 		pval->intval = POWER_SUPPLY_TYPE_MAINS;
+	else if (psp == POWER_SUPPLY_PROP_CHARGE_NOW)
+		pval->intval = chip->cl->init_cap_uah;
+	else if (psp == POWER_SUPPLY_PROP_VOLTAGE_OCV)
+		rc = qg_sdam_read(SDAM_OCV_UV, &pval->intval);
 
-	return 0;
+	return rc;
 }
 
 static enum power_supply_property qg_psy_props[] = {
 	POWER_SUPPLY_PROP_TYPE,
+	POWER_SUPPLY_PROP_CHARGE_NOW,
+	POWER_SUPPLY_PROP_VOLTAGE_OCV,
 };
 
 static const struct power_supply_desc qg_psy_desc = {
@@ -3037,6 +3067,7 @@ static int get_batt_id_ohm(struct qpnp_qg *chip, u32 *batt_id_ohm)
 	return 0;
 }
 
+#define SDAM_MAGIC_NUMBER		0x12345678
 static int qg_load_battery_profile(struct qpnp_qg *chip)
 {
 	struct device_node *node = chip->dev->of_node;
@@ -3104,6 +3135,13 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 	if (rc < 0) {
 		pr_err("Failed to read battery fastcharge current rc:%d\n", rc);
 		chip->bp.fastchg_curr_ma = -EINVAL;
+	}
+
+	rc = of_property_read_u32(profile_node, "qcom,sdam-magic-number",
+				&chip->bp.sdam_magic_number);
+	if (rc < 0) {
+		pr_err("Failed to read sdam magic number rc:%d\n", rc);
+		chip->bp.sdam_magic_number = SDAM_MAGIC_NUMBER;
 	}
 
 	/*
@@ -3458,7 +3496,6 @@ static int qg_set_wa_flags(struct qpnp_qg *chip)
 	return 0;
 }
 
-#define SDAM_MAGIC_NUMBER		0x12345678
 static int qg_sanitize_sdam(struct qpnp_qg *chip)
 {
 	int rc = 0;
@@ -3470,10 +3507,10 @@ static int qg_sanitize_sdam(struct qpnp_qg *chip)
 		return rc;
 	}
 
-	if (data == SDAM_MAGIC_NUMBER) {
+	if (data == chip->bp.sdam_magic_number) {
 		qg_dbg(chip, QG_DEBUG_PON, "SDAM valid\n");
 	} else if (data == 0) {
-		rc = qg_sdam_write(SDAM_MAGIC, SDAM_MAGIC_NUMBER);
+		rc = qg_sdam_write(SDAM_MAGIC, chip->bp.sdam_magic_number);
 		if (!rc)
 			qg_dbg(chip, QG_DEBUG_PON, "First boot. SDAM initilized\n");
 		chip->first_profile_load = true;
@@ -3482,7 +3519,7 @@ static int qg_sanitize_sdam(struct qpnp_qg *chip)
 		rc = qg_sdam_clear();
 		if (!rc) {
 			pr_err("SDAM uninitialized, SDAM reset\n");
-			rc = qg_sdam_write(SDAM_MAGIC, SDAM_MAGIC_NUMBER);
+			rc = qg_sdam_write(SDAM_MAGIC, chip->bp.sdam_magic_number);
 		}
 		chip->first_profile_load = true;
 	}
@@ -4353,7 +4390,8 @@ static int qg_parse_dt(struct qpnp_qg *chip)
 
 	chip->dt.esr_discharge_enable = of_property_read_bool(node,
 					"qcom,esr-discharge-enable");
-
+	chip->dt.cp_use_internal_qg = of_property_read_bool(node,
+					"mmi,cp-use-internal-qg");
 	rc = of_property_read_u32(node, "qcom,esr-qual-current-ua", &temp);
 	if (rc < 0)
 		chip->dt.esr_qual_i_ua = DEFAULT_ESR_QUAL_CURRENT_UA;
@@ -4698,6 +4736,10 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	struct iio_dev *indio_dev;
 	struct qg_config *config;
 
+	if (!alarmtimer_get_rtcdev()) {
+		pr_err("Failed:qpnp qg probe failed, wait rtc prob\n");
+		return -EPROBE_DEFER;
+	}
 	indio_dev = devm_iio_device_alloc(&pdev->dev, sizeof(*chip));
 	if (!indio_dev)
 		return -ENOMEM;
