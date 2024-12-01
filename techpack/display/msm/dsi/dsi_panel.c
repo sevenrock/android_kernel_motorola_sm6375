@@ -481,7 +481,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 {
 	int rc = 0;
 
-	DSI_INFO("(%s)+\n", panel->name);
+//	DSI_INFO("(%s)+\n", panel->name);
 
 	if ((panel->tp_state_check_enable) && (panel->tp_state)) {
 		pr_info("%s: (%s)+power is alway on \n", __func__, panel->name);
@@ -531,7 +531,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		DSI_DEBUG("TWM Enabled, skip panel power off\n");
 		return rc;
 	}
-	DSI_INFO("%s(%s)+\n", __func__, panel->name);
+//	DSI_INFO("%s(%s)+\n", __func__, panel->name);
 
 	if (panel->tp_state_check_enable) {
 			if (panel_power_is_alway_on (panel)) {
@@ -6303,7 +6303,7 @@ int dsi_panel_post_switch(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-	pr_info("(%s)+\n", panel->name);
+//	pr_info("(%s)+\n", panel->name);
 	mutex_lock(&panel->panel_lock);
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_POST_TIMING_SWITCH);
@@ -6326,7 +6326,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-	DSI_INFO("(%s)+\n", panel->name);
+//	DSI_INFO("(%s)+\n", panel->name);
 	mutex_lock(&panel->panel_lock);
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
@@ -6457,7 +6457,7 @@ int dsi_panel_disable(struct dsi_panel *panel)
 		DSI_DEBUG("TWM Enabled, skip panel disable\n");
 		return rc;
 	}
-	DSI_INFO("%s(%s)+\n", __func__, panel->name);
+//	DSI_INFO("%s(%s)+\n", __func__, panel->name);
 	mutex_lock(&panel->panel_lock);
 
 	/* Avoid sending panel off commands when ESD recovery is underway */
