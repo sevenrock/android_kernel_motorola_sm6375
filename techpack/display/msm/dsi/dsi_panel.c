@@ -1344,6 +1344,65 @@ static int dsi_panel_set_hbm(struct dsi_panel *panel,
 	return rc;
 };
 
+static ssize_t dsi_panel_set_hbm_status(struct dsi_panel *panel, bool hbm_status,
+										bool fodhbm_status)
+{
+	struct msm_param_info param_info;
+
+	param_info.param_idx = PARAM_HBM_ID;
+	if(hbm_status)
+		param_info.value = HBM_ON_STATE;
+	else if(fodhbm_status)
+		param_info.value = HBM_FOD_ON_STATE;
+	else
+		param_info.value = HBM_OFF_STATE;
+
+	return dsi_panel_set_param(panel, &param_info);
+}
+
+static ssize_t sysfs_hbm_read(struct device *dev,
+			      struct device_attribute *attr,
+			      char *buf)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_panel *panel = display->panel;
+	bool status;
+
+	mutex_lock(&panel->panel_lock);
+	status = panel->hbm_enabled;
+	mutex_unlock(&panel->panel_lock);
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", status);
+}
+
+static ssize_t sysfs_hbm_write(struct device *dev,
+			       struct device_attribute *attr,
+			       const char *buf, size_t count)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_panel *panel = display->panel;
+	bool status;
+	int rc;
+
+	rc = kstrtobool(buf, &status);
+	if (rc)
+		return rc;
+
+	if (panel->hbm_enabled == status)
+		goto exit;
+
+	rc = dsi_panel_set_hbm_status(panel, status, panel->fod_hbm_enabled);
+	if (rc)
+		goto exit;
+
+	panel->hbm_enabled = status;
+
+exit:
+	return rc ?: count;
+}
+
+static DEVICE_ATTR(dsi_display_hbm, 0644, sysfs_hbm_read, sysfs_hbm_write);
+
 static ssize_t sysfs_fod_hbm_read(struct device *dev,
 				  struct device_attribute *attr,
 				  char *buf)
@@ -1365,7 +1424,6 @@ static ssize_t sysfs_fod_hbm_write(struct device *dev,
 {
 	struct dsi_display *display = dev_get_drvdata(dev);
 	struct dsi_panel *panel = display->panel;
-	struct msm_param_info param_info;
 	bool status;
 	int rc;
 
@@ -1379,9 +1437,7 @@ static ssize_t sysfs_fod_hbm_write(struct device *dev,
 	if (panel->fod_hbm_enabled == status)
 		goto exit;
 
-	param_info.param_idx = PARAM_HBM_ID;
-	param_info.value = status ? HBM_FOD_ON_STATE : HBM_OFF_STATE;
-	rc = dsi_panel_set_hbm(panel, &param_info);
+	rc =  dsi_panel_set_hbm_status(panel, panel->hbm_enabled, status);
 	if (rc)
 		goto exit;
 
@@ -1391,11 +1447,62 @@ exit:
 
 	return rc ?: count;
 }
-
 static DEVICE_ATTR(fod_hbm, 0644, sysfs_fod_hbm_read, sysfs_fod_hbm_write);
 
+static ssize_t dsi_panel_set_dc_dimming_status(struct dsi_panel *panel, bool status)
+{
+	struct msm_param_info param_info;
+	param_info.param_idx = PARAM_DC_ID;
+	param_info.value = status ? DC_ON_STATE : DC_OFF_STATE;
+
+	return dsi_panel_set_param(panel, &param_info);
+}
+
+static ssize_t sysfs_dc_dimming_read(struct device *dev,
+				     struct device_attribute *attr,
+				     char *buf)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_panel *panel = display->panel;
+	bool status;
+
+	mutex_lock(&panel->panel_lock);
+	status = panel->dc_state;
+	mutex_unlock(&panel->panel_lock);
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", status);
+}
+
+static ssize_t sysfs_dc_dimming_write(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_panel *panel = display->panel;
+	bool status;
+	int rc;
+
+	rc = kstrtobool(buf, &status);
+	if (rc)
+		return rc;
+
+	if (panel->dc_state == status)
+		goto exit;
+
+	rc = dsi_panel_set_dc_dimming_status(panel, status);
+	if (rc)
+		goto exit;
+
+exit:
+	return rc ?: count;
+}
+
+static DEVICE_ATTR(dsi_display_dc, 0644, sysfs_dc_dimming_read, sysfs_dc_dimming_write);
+
 static struct attribute *panel_attrs[] = {
+	&dev_attr_dsi_display_hbm.attr,
 	&dev_attr_fod_hbm.attr,
+	&dev_attr_dsi_display_dc.attr,
 	NULL,
 };
 
@@ -6296,6 +6403,15 @@ int dsi_panel_post_enable(struct dsi_panel *panel)
 			pr_err("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
 			       panel->name, rc);
 		}
+	}
+
+	if (panel->hbm_enabled) {
+	    mutex_unlock(&panel->panel_lock);
+		rc = dsi_panel_set_hbm_status(panel, false, false);
+		rc = dsi_panel_set_hbm_status(panel, panel->hbm_enabled,
+					panel->fod_hbm_enabled);
+		if (rc)
+			goto error;
 	}
 error:
 	mutex_unlock(&panel->panel_lock);
