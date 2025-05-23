@@ -1442,7 +1442,6 @@ static bool sgm4154x_state_changed(struct sgm4154x_device *sgm,
 		old_state.chrg_type != new_state->chrg_type
 		);
 }
-#endif
 static void sgm4154x_dump_register(struct sgm4154x_device * sgm)
 {
 	int i = 0;
@@ -1453,6 +1452,7 @@ static void sgm4154x_dump_register(struct sgm4154x_device * sgm)
 		pr_err("%s REG[0x%x]=0x%x\n", __func__, i, reg);
 	}
 }
+#endif
 
 int sgm4154x_get_usb_present(struct sgm4154x_device *sgm)
 {
@@ -1719,7 +1719,7 @@ static void charger_monitor_work_func(struct work_struct *work)
 		}
 	}
 
-	sgm4154x_dump_register(sgm);
+	//sgm4154x_dump_register(sgm);
 	pr_err("%s ret:%d\n",__func__,ret);
 OUT:
 	schedule_delayed_work(&sgm->charge_monitor_work, 10*HZ);
