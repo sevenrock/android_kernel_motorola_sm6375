@@ -97,6 +97,7 @@ include/uapi/linux/eventpoll.h:CONFIG_PM_SLEEP
 include/uapi/linux/hw_breakpoint.h:CONFIG_HAVE_MIXED_BREAKPOINTS_REGS
 include/uapi/linux/pktcdvd.h:CONFIG_CDROM_PKTCDVD_WCACHE
 include/uapi/linux/raw.h:CONFIG_MAX_RAW_DEVS
+techpack/camera/include/uapi/camera/media/cam_ope.h:CONFIG_SPECTRA_CAMERA_LEGACY
 "
 
 for c in $configs
